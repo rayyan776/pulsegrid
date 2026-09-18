@@ -1,0 +1,113 @@
+:root {
+  /* ---- Aurora Paper theme: warm light surface, ink text, coral/indigo/teal accents ---- */
+  --bg: #f7f4ee;
+  --bg-glow-1: rgba(255, 107, 74, 0.10);
+  --bg-glow-2: rgba(67, 97, 238, 0.08);
+  --surface: #ffffff;
+  --surface-raised: #fbfaf6;
+  --surface-solid: #ffffff;
+  --border: rgba(28, 29, 38, 0.10);
+  --border-hover: rgba(28, 29, 38, 0.22);
+
+  --text: #1c1d26;
+  --text-muted: #6b6f7d;
+  --text-dim: #a4a8b3;
+
+  /* ---- accent trio ---- */
+  --accent: #ff6b4a;
+  --accent-2: #4361ee;
+  --accent-3: #12b3a8;
+  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
+
+  --ok: #1ea672;
+  --warn: #d98c0e;
+  --danger: #e0435b;
+
+  --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 20px;
+
+  --shadow-sm: 0 1px 2px rgba(28, 29, 38, 0.05), 0 1px 3px rgba(28, 29, 38, 0.06);
+  --shadow: 0 14px 34px rgba(28, 29, 38, 0.10), 0 2px 8px rgba(28, 29, 38, 0.05);
+  --shadow-glow: 0 8px 22px rgba(255, 107, 74, 0.28);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --topbar-bg: rgba(247, 244, 238, 0.85);
+  --scrollbar-thumb: rgba(28, 29, 38, 0.14);
+  --scrollbar-thumb-hover: rgba(28, 29, 38, 0.26);
+}
+
+/* ---- Aurora Night: the dark counterpart, toggled via the sun/moon button
+   in the topbar (see ThemeService). Same accent hues throughout — only the
+   paper/ink surfaces invert — so brand identity holds in both modes. ---- */
+:root[data-theme='dark'] {
+  --bg: #14151f;
+  --bg-glow-1: rgba(255, 107, 74, 0.16);
+  --bg-glow-2: rgba(67, 97, 238, 0.14);
+  --surface: #1c1d29;
+  --surface-raised: #262837;
+  --surface-solid: #1c1d29;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-hover: rgba(255, 255, 255, 0.18);
+
+  --text: #f2f1ec;
+  --text-muted: #9a9dac;
+  --text-dim: #6b6f7d;
+
+  --ok: #2fd88a;
+  --warn: #ffb742;
+  --danger: #ff5c72;
+
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.32);
+  --shadow: 0 16px 38px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 8px 22px rgba(255, 107, 74, 0.35);
+
+  --topbar-bg: rgba(20, 21, 31, 0.82);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.26);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+  background-image:
+    radial-gradient(1000px circle at 6% -8%, var(--bg-glow-1), transparent 55%),
+    radial-gradient(760px circle at 96% 4%, var(--bg-glow-2), transparent 50%);
+  background-attachment: fixed;
+}
+
+::selection { background: var(--accent); color: #fff; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+button { font-family: inherit; }
+
+/* shared card utility, used by panel/stat-badge/modals — a crisp solid
+   card with a soft shadow instead of the old dark glassmorphism look. */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}

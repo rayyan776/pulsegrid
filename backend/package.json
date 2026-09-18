@@ -1,0 +1,24 @@
+{
+  "name": "pulsegrid-backend",
+  "version": "1.0.0",
+  "description": "Backend for PulseGrid — real-time device monitoring dashboard",
+  "scripts": {
+    "simulate": "node simulator.js",
+    "worker": "node worker.js",
+    "aggregate": "node aggregator.js",
+    "server": "node server.js",
+    "dev": "concurrently -n SIM,WORKER,SERVER,AGGREGATOR -c green,yellow,blue,magenta \"npm:simulate\" \"npm:worker\" \"npm:server\" \"npm:aggregate\""
+  },
+  "dependencies": {
+    "bullmq": "^5.12.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.5.0",
+    "node-cron": "^3.0.3",
+    "redis": "^6.2.1",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
