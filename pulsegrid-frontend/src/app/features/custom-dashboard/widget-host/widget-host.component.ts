@@ -1,18 +1,15 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { StatBadgeComponent } from '../../../shared/components/stat-badge/stat-badge.component';
 import { AgoFromPipe } from '../../../shared/pipes/duration-ago.pipe';
 import { MiniChartComponent } from '../mini-chart/mini-chart.component';
 import { SocketService } from '../../../core/services/socket.service';
+import { SettingsService } from '../../../core/services/settings.service';
 import { DashboardLayoutService } from '../services/dashboard-layout.service';
 import { WidgetConfig, MetricKey } from '../models/widget-config.model';
+import { DEFAULT_THRESHOLDS } from '../../../shared/thresholds';
 
 const UNITS: Record<MetricKey, string> = { cpu: '%', memory: '%', latency: 'ms' };
-const THRESHOLDS: Record<MetricKey, { warnAt: number; dangerAt: number }> = {
-  cpu: { warnAt: 70, dangerAt: 90 },
-  memory: { warnAt: 70, dangerAt: 90 },
-  latency: { warnAt: 200, dangerAt: 350 },
-};
 
 @Component({
   selector: 'pg-widget-host',
@@ -135,13 +132,23 @@ export class WidgetHostComponent {
   protected readonly layout = inject(DashboardLayoutService);
   private readonly socket = inject(SocketService);
   private readonly router = inject(Router);
+  private readonly settingsSvc = inject(SettingsService);
+  private readonly injector = inject(Injector);
 
   protected readonly menuOpen = signal(false);
   protected readonly renaming = signal(false);
   private readonly renameInputRef = viewChild<ElementRef<HTMLInputElement>>('renameInput');
 
   protected readonly unit = computed(() => UNITS[this.config().metric]);
-  protected readonly thresholds = computed(() => THRESHOLDS[this.config().metric]);
+
+  // CPU's danger line is user-adjustable from the Settings page; memory and
+  // latency stay on the shared defaults.
+  protected readonly thresholds = computed(() => {
+    const base = DEFAULT_THRESHOLDS[this.config().metric];
+    if (this.config().metric !== 'cpu') return base;
+    const dangerAt = this.settingsSvc.settings().cpuAlertThreshold;
+    return { dangerAt, warnAt: Math.round((dangerAt * base.warnAt) / base.dangerAt) };
+  });
 
   protected readonly latestUpdate = computed(() =>
     this.socket.updatesByDevice().get(this.config().deviceId) ?? null,
@@ -163,8 +170,11 @@ export class WidgetHostComponent {
 
   protected startRename(): void {
     this.renaming.set(true);
-    // Focus happens on the next tick, once the input has actually rendered.
-    queueMicrotask(() => this.renameInputRef()?.nativeElement.select());
+    // afterNextRender (not queueMicrotask): under zoneless change detection a
+    // microtask can run before the @if flips to the input branch and actually
+    // renders the element, making the focus/select a no-op. afterNextRender
+    // is Angular's own post-render hook, so the input is guaranteed to exist.
+    afterNextRender(() => this.renameInputRef()?.nativeElement.select(), { injector: this.injector });
   }
 
   protected commitRename(value: string): void {

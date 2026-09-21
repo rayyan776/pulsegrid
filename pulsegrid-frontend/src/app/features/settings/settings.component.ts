@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { SettingsService } from '../../core/services/settings.service';
+import { DEFAULT_THRESHOLDS } from '../../shared/thresholds';
 
 // NOTE ON SIGNAL FORMS: v22 also ships @angular/forms/signals (form(),
 // a Field directive, functional validators like required()/min()/max()).
@@ -18,12 +20,6 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 // .value or valueChanges, push external changes in via patchValue().
 // Signal Forms: form() wraps a signal you already own; there's no second
 // object to reconcile — the signal IS the form's source of truth.
-
-interface SettingsModel {
-  pollIntervalMs: number;
-  cpuAlertThreshold: number;
-  deviceLabel: string;
-}
 
 @Component({
   selector: 'pg-settings',
@@ -78,28 +74,26 @@ styles: [`
 })
 export class SettingsComponent {
   private readonly fb = new FormBuilder();
+  private readonly settingsSvc = inject(SettingsService);
 
-  // What actually gets saved — a plain signal, updated only on submit.
-  // (Contrast: in Signal Forms this signal would BE settingsForm's model,
-  // updated live on every keystroke, not just on submit.)
-  protected readonly saved = signal<SettingsModel>({
-    pollIntervalMs: 2000,
-    cpuAlertThreshold: 90,
-    deviceLabel: '',
-  });
+  // Backed by SettingsService now — DeviceService reads pollIntervalMs to
+  // drive its periodic refresh, widget-host/device-detail read
+  // cpuAlertThreshold for the CPU warn/danger line, and the dashboard's
+  // "Add widget" picker reads deviceLabel to filter its device list.
+  protected readonly saved = this.settingsSvc.settings;
 
   protected readonly settingsForm = this.fb.group({
-    pollIntervalMs: this.fb.control(2000, [Validators.required, Validators.min(500), Validators.max(10000)]),
-    cpuAlertThreshold: this.fb.control(90, [Validators.required, Validators.min(1), Validators.max(100)]),
-    deviceLabel: this.fb.control(''),
+    pollIntervalMs: this.fb.control(this.saved().pollIntervalMs, [Validators.required, Validators.min(500), Validators.max(10000)]),
+    cpuAlertThreshold: this.fb.control(this.saved().cpuAlertThreshold, [Validators.required, Validators.min(1), Validators.max(100)]),
+    deviceLabel: this.fb.control(this.saved().deviceLabel),
   });
 
   protected onSubmit(): void {
     if (this.settingsForm.invalid) return;
     const raw = this.settingsForm.getRawValue();
-    this.saved.set({
+    this.settingsSvc.save({
       pollIntervalMs: raw.pollIntervalMs ?? 2000,
-      cpuAlertThreshold: raw.cpuAlertThreshold ?? 90,
+      cpuAlertThreshold: raw.cpuAlertThreshold ?? DEFAULT_THRESHOLDS.cpu.dangerAt,
       deviceLabel: raw.deviceLabel ?? '',
     });
   }

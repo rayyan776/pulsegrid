@@ -1,6 +1,7 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { APP_CONFIG } from '../tokens/app-config.token';
+import { SettingsService } from './settings.service';
 
 export interface Device {
   deviceId: string;
@@ -24,6 +25,7 @@ export interface MetricPoint {
 @Injectable({ providedIn: 'root' })
 export class DeviceService {
   private readonly config = inject(APP_CONFIG);
+  private readonly settingsSvc = inject(SettingsService);
 
   // httpResource() (stable in v22): the signal-native replacement for
   // "subscribe in ngOnInit, push into a signal by hand". It fetches on
@@ -34,6 +36,21 @@ export class DeviceService {
     () => `${this.config.apiUrl}/devices`,
     { defaultValue: [] },
   );
+
+  constructor() {
+    // Re-fetch the device list on the interval set on the Settings page —
+    // this is what keeps each device's online/offline status (now backed by
+    // the presence key) and the fleet count from going stale between visits.
+    // Clamped defensively at the point of use: setInterval treats 0 or a
+    // negative delay as "fire ASAP, repeatedly", which would hammer the API
+    // in a near-tight loop if this value were ever corrupted or set by a
+    // future code path that skips the Settings form's own validators.
+    effect((onCleanup) => {
+      const intervalMs = Math.max(500, this.settingsSvc.settings().pollIntervalMs);
+      const id = setInterval(() => this.devicesResource.reload(), intervalMs);
+      onCleanup(() => clearInterval(id));
+    });
+  }
 
   // Params the caller can change to re-trigger the request reactively.
   readonly selectedDeviceId = signal<string | null>(null);

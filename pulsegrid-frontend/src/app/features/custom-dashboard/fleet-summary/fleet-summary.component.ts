@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { DeviceService } from '../../../core/services/device.service';
 import { SocketService } from '../../../core/services/socket.service';
+import { SettingsService } from '../../../core/services/settings.service';
+import { DEFAULT_THRESHOLDS } from '../../../shared/thresholds';
 
 const OFFLINE_AFTER_MS = 10_000; // matches the backend's presence key TTL
 
@@ -98,6 +100,7 @@ export class FleetSummaryComponent {
 
   private readonly deviceSvc = inject(DeviceService);
   private readonly socket = inject(SocketService);
+  private readonly settingsSvc = inject(SettingsService);
 
   // Total device count — this is essentially static config, fine to source
   // from the one-time API fetch.
@@ -105,8 +108,8 @@ export class FleetSummaryComponent {
 
   // Everything else that needs to feel "live" is derived straight from the
   // same socket map the charts read — so it updates on the exact same tick,
-  // instead of depending on devicesResource.reload() (which nothing calls
-  // anymore now that the old polling dashboard is gone).
+  // rather than waiting on DeviceService's slower, Settings-driven
+  // devicesResource poll (which only refreshes online/offline + fleet count).
   private readonly liveReadings = computed(() => Array.from(this.socket.updatesByDevice().values()));
 
   protected readonly onlineCount = computed(() => {
@@ -114,9 +117,13 @@ export class FleetSummaryComponent {
     return this.liveReadings().filter((u) => now - u.timestamp < OFFLINE_AFTER_MS).length;
   });
 
-  protected readonly problemCount = computed(() =>
-    this.liveReadings().filter((u) => u.cpu >= 90 || u.latency >= 350).length,
-  );
+  // Kept in sync with CustomDashboardComponent.jumpToFirstProblem's own
+  // threshold check — this count is what makes that button visible/clickable.
+  protected readonly problemCount = computed(() => {
+    const cpuDangerAt = this.settingsSvc.settings().cpuAlertThreshold;
+    const latencyDangerAt = DEFAULT_THRESHOLDS.latency.dangerAt;
+    return this.liveReadings().filter((u) => u.cpu >= cpuDangerAt || u.latency >= latencyDangerAt).length;
+  });
 
   protected readonly avgCpu = computed(() => {
     const list = this.liveReadings();

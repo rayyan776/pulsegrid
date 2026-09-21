@@ -1,4 +1,5 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { finalize } from 'rxjs';
 
 // Functional interceptor (v22): a plain function, not a class implementing
 // HttpInterceptor. Registered via provideHttpClient(withInterceptors([...])).
@@ -11,6 +12,12 @@ export const requestIdInterceptor: HttpInterceptorFn = (req, next) => {
 
 export const timingInterceptor: HttpInterceptorFn = (req, next) => {
   const started = performance.now();
-  return next(req);
-  // Attach a tap() here if you want to log durations — kept minimal on purpose.
+  // finalize() (not tap()) runs on success, error, AND unsubscription — a
+  // tap-only version would silently skip logging any request that errors.
+  return next(req).pipe(
+    finalize(() => {
+      const durationMs = Math.round(performance.now() - started);
+      console.debug(`[HTTP] ${req.method} ${req.urlWithParams} — ${durationMs}ms`);
+    }),
+  );
 };

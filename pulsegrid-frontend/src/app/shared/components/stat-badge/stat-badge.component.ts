@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { DEFAULT_THRESHOLDS } from '../../thresholds';
 
 @Component({
   selector: 'pg-stat-badge',
@@ -30,8 +31,9 @@ export class StatBadgeComponent {
   readonly label = input.required<string>();
   readonly value = input.required<number>();
   readonly unit = input('%');
-  readonly warnAt = input(70);
-  readonly dangerAt = input(90);
+  // cpu/memory share these defaults; latency callers always pass their own.
+  readonly warnAt = input(DEFAULT_THRESHOLDS.cpu.warnAt);
+  readonly dangerAt = input(DEFAULT_THRESHOLDS.cpu.dangerAt);
 
   readonly color = computed(() => {
     const v = this.value();
@@ -40,5 +42,11 @@ export class StatBadgeComponent {
     return 'var(--ok)';
   });
 
-  readonly pct = computed(() => Math.max(4, Math.min(100, this.value())));
+  // Normalized against dangerAt rather than assumed to already be 0-100 —
+  // otherwise a non-percentage metric like latency (ms) with dangerAt=350
+  // shows a full bar at 120ms, which reads as "critical" when it's healthy.
+  readonly pct = computed(() => {
+    const scale = this.dangerAt() > 0 ? this.dangerAt() : 100;
+    return Math.max(4, Math.min(100, (this.value() / scale) * 100));
+  });
 }

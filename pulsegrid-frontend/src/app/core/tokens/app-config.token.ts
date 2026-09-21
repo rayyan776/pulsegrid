@@ -6,17 +6,15 @@ import { environment } from '../../../environments/environment';
 export interface AppConfig {
   apiUrl: string;
   socketUrl: string;
-  pollIntervalMs: number;
-  cpuAlertThreshold: number;
 }
 
+// pollIntervalMs and cpuAlertThreshold used to live here as static, unread
+// fields — they're runtime-adjustable now, owned by SettingsService instead.
 export const APP_CONFIG = new InjectionToken<AppConfig>('APP_CONFIG', {
   // providedIn factory means most call sites never need an explicit provider —
   // override it per-component (component-level DI scoping) only for tests.
   factory: () => ({
     apiUrl: environment.apiUrl,
     socketUrl: environment.socketUrl,
-    pollIntervalMs: 2000,
-    cpuAlertThreshold: 90,
   }),
 });

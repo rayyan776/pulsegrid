@@ -11,5 +11,8 @@ const rollupSchema = new mongoose.Schema({
   sampleCount: Number,
 });
 
-rollupSchema.index({ deviceId: 1, bucketStart: -1 });
+// Unique so the aggregator's upsert can never create two buckets for the
+// same (deviceId, bucketStart) — a rerun or overlapping cron fire just
+// overwrites the same document instead of double-counting.
+rollupSchema.index({ deviceId: 1, bucketStart: -1 }, { unique: true });
 module.exports = mongoose.model('Rollup1h', rollupSchema);

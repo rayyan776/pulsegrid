@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pulsegrid-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "pulsegrid-frontend", "run", "start"],
+      "port": 4200
+    }
+  ]
+}

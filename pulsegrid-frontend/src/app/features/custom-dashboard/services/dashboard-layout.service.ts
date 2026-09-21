@@ -6,9 +6,12 @@
 
 import { Injectable, effect, signal } from '@angular/core';
 import { WidgetConfig, WidgetType, MetricKey, AggInterval } from '../models/widget-config.model';
+import { DEVICE_IDS } from '../../../core/constants/device-ids';
 
 const STORAGE_KEY = 'pulsegrid.customDashboard.v1';
-const DEVICE_IDS = ['device1', 'device2', 'device3', 'device4', 'device5'];
+const WIDGET_TYPES: readonly WidgetType[] = ['chart', 'stat'];
+const METRIC_KEYS: readonly MetricKey[] = ['cpu', 'memory', 'latency'];
+const AGG_INTERVALS: readonly AggInterval[] = ['1m', '10m', '1h'];
 
 function defaultLayout(): WidgetConfig[] {
   return DEVICE_IDS.map((id, i) => ({
@@ -24,9 +27,21 @@ function defaultLayout(): WidgetConfig[] {
   }));
 }
 
+// Checks the type/metric/interval fields are actually valid enum members,
+// not just present with the right JS typeof — a widget with, say,
+// metric: "temperature" would pass a typeof-only check, then crash
+// widget-host's thresholds lookup (DEFAULT_THRESHOLDS['temperature'] is
+// undefined, so reading .warnAt off it throws). Reachable from anything that
+// can touch localStorage: manual devtools editing, or a future schema change
+// loaded by an older build.
 function isWidgetConfig(v: any): v is WidgetConfig {
   return v && typeof v === 'object'
     && typeof v.id === 'string'
+    && typeof v.deviceId === 'string'
+    && typeof v.title === 'string'
+    && WIDGET_TYPES.includes(v.type)
+    && METRIC_KEYS.includes(v.metric)
+    && (v.interval === undefined || AGG_INTERVALS.includes(v.interval))
     && typeof v.x === 'number' && typeof v.y === 'number'
     && typeof v.cols === 'number' && typeof v.rows === 'number';
 }

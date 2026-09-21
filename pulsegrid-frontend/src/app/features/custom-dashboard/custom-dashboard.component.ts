@@ -5,7 +5,9 @@ import { FleetSummaryComponent } from './fleet-summary/fleet-summary.component';
 import { DashboardLayoutService } from './services/dashboard-layout.service';
 import { DeviceService } from '../../core/services/device.service';
 import { SocketService } from '../../core/services/socket.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { MetricKey, WidgetType, AggInterval } from './models/widget-config.model';
+import { DEFAULT_THRESHOLDS } from '../../shared/thresholds';
 
 @Component({
   selector: 'pg-custom-dashboard',
@@ -14,6 +16,10 @@ import { MetricKey, WidgetType, AggInterval } from './models/widget-config.model
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <pg-fleet-summary (jumpToProblem)="jumpToFirstProblem()" />
+
+    @if (deviceSvc.devicesResource.error(); as err) {
+      <div class="error-banner">Couldn't load devices: {{ err.message || 'unknown error' }}</div>
+    }
 
     <div class="canvas-header">
       <div class="heading">
@@ -54,6 +60,9 @@ import { MetricKey, WidgetType, AggInterval } from './models/widget-config.model
             <div class="pills">
               @for (d of deviceIds(); track d) {
                 <button [class.active]="pickDevice() === d" (click)="pickDevice.set(d)">{{ d }}</button>
+              }
+              @if (!deviceIds().length) {
+                <span class="picker-hint">No devices match the label filter set on the Settings page.</span>
               }
             </div>
           </div>
@@ -97,6 +106,10 @@ import { MetricKey, WidgetType, AggInterval } from './models/widget-config.model
   `,
   styles: [`
     :host { display: block; position: relative; }
+
+    .error-banner { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: var(--radius-sm);
+      padding: 10px 14px; font-size: 12.5px; margin-bottom: var(--space-4); }
 
     .canvas-header { display: flex; justify-content: space-between; align-items: flex-end;
       margin-bottom: var(--space-4); gap: var(--space-4); flex-wrap: wrap; }
@@ -178,10 +191,17 @@ import { MetricKey, WidgetType, AggInterval } from './models/widget-config.model
 })
 export class CustomDashboardComponent {
   protected readonly layout = inject(DashboardLayoutService);
-  private readonly deviceSvc = inject(DeviceService);
+  protected readonly deviceSvc = inject(DeviceService);
   private readonly socket = inject(SocketService);
+  private readonly settingsSvc = inject(SettingsService);
 
-  protected readonly deviceIds = computed(() => this.deviceSvc.devicesResource.value().map((d) => d.deviceId));
+  // Filtered by the Settings page's device label filter — a substring match
+  // against the device id.
+  protected readonly deviceIds = computed(() => {
+    const all = this.deviceSvc.devicesResource.value().map((d) => d.deviceId);
+    const label = this.settingsSvc.settings().deviceLabel.trim().toLowerCase();
+    return label ? all.filter((id) => id.toLowerCase().includes(label)) : all;
+  });
 
   protected readonly showAddModal = signal(false);
   protected readonly pickDevice = signal('');
@@ -224,10 +244,12 @@ export class CustomDashboardComponent {
 
   /** "Problems" KPI click: scroll to the first widget on a device currently past threshold, and flash it. */
   protected jumpToFirstProblem(): void {
+    const cpuDangerAt = this.settingsSvc.settings().cpuAlertThreshold;
+    const latencyDangerAt = DEFAULT_THRESHOLDS.latency.dangerAt;
     const readings = this.socket.updatesByDevice();
     const problemDeviceIds = new Set(
       Array.from(readings.values())
-        .filter((u) => u.cpu >= 90 || u.latency >= 350)
+        .filter((u) => u.cpu >= cpuDangerAt || u.latency >= latencyDangerAt)
         .map((u) => u.deviceId),
     );
     const target = this.layout.widgets().find((w) => problemDeviceIds.has(w.deviceId));

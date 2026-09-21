@@ -1,8 +1,7 @@
 // simulator.js — PulseGrid producer process
 const { client, connectRedis } = require('./redisClient');
 const metricsQueue = require('./queue');
-
-const DEVICE_IDS = ['device1', 'device2', 'device3', 'device4', 'device5'];
+const config = require('./config');
 
 function generateMetrics() {
   return {
@@ -17,29 +16,26 @@ async function simulateDeviceReading(deviceId) {
   const metrics = generateMetrics();
 
   try {
-    await client.hSet(`device:${deviceId}`, {
+    // DEL before HSET, not just HSET: HSET only touches the fields you pass
+    // it, so any field left over from a previous schema (or, on a shared
+    // Redis instance, from an entirely different app that happens to reuse
+    // "device:{id}" as a key name) would sit there forever and leak into
+    // GET /api/devices. The redisKeyPrefix namespacing below closes the
+    // cross-app collision; this closes the same-app schema-drift case.
+    const deviceKey = `${config.redisKeyPrefix}:device:${deviceId}`;
+    await client.del(deviceKey);
+    await client.hSet(deviceKey, {
       cpu: String(metrics.cpu),
       memory: String(metrics.memory),
       latency: String(metrics.latency),
-      status: 'online',
     });
 
-    await client.zAdd(`history:${deviceId}`, {
-      score: metrics.timestamp,
-      value: JSON.stringify(metrics),
-    });
+    // The presence key is the actual liveness signal — it expires on its own
+    // if this device stops ticking, so GET /api/devices can report real
+    // online/offline instead of a hardcoded, always-true status field.
+    await client.set(`${config.redisKeyPrefix}:presence:${deviceId}`, 'alive', { EX: config.presenceTtlSeconds });
 
-    await client.set(`presence:${deviceId}`, 'alive', { EX: 10 });
-
-
-    await metricsQueue.add(
-      'process-reading',
-      { deviceId, ...metrics },
-      { attempts: 3, backoff: { type: 'exponential', delay: 1000 } }
-    );
-
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    await client.zRemRangeByScore(`history:${deviceId}`, '-inf', fiveMinutesAgo);
+    await metricsQueue.add('process-reading', { deviceId, ...metrics });
 
     console.log(`[${new Date().toISOString()}] ${deviceId} ->`, metrics);
   } catch (err) {
@@ -48,13 +44,17 @@ async function simulateDeviceReading(deviceId) {
 }
 
 async function tick() {
-  await Promise.all(DEVICE_IDS.map((id) => simulateDeviceReading(id)));
+  await Promise.all(config.deviceIds.map((id) => simulateDeviceReading(id)));
 }
 
 async function start() {
   await connectRedis();
   await tick();
-  setInterval(tick, 2000);
+  setInterval(tick, config.simulatorTickMs);
 }
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection in simulator process:', err);
+});
 
 start();

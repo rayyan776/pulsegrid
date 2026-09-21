@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { DeviceService } from '../../core/services/device.service';
 import { SocketService, DeviceUpdate } from '../../core/services/socket.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { TimeseriesChartComponent } from './timeseries-chart/timeseries-chart.component';
 import { StatBadgeComponent } from '../../shared/components/stat-badge/stat-badge.component';
 import { PanelComponent } from '../../shared/components/panel/panel.component';
 import { PanelActionsDirective } from '../../shared/components/panel/panel-actions.directive';
 import { AgoFromPipe } from '../../shared/pipes/duration-ago.pipe';
+import { DEFAULT_THRESHOLDS } from '../../shared/thresholds';
 
 @Component({
   selector: 'pg-device-detail',
@@ -23,11 +25,15 @@ import { AgoFromPipe } from '../../shared/pipes/duration-ago.pipe';
       }
     </div>
 
+    @if (history.error(); as err) {
+      <div class="error-banner">Couldn't load history for {{ id() }}: {{ err.message || 'unknown error' }}</div>
+    }
+
     @if (latest(); as l) {
       <div class="stats">
-        <pg-stat-badge label="CPU (live)" [value]="l.cpu" />
+        <pg-stat-badge label="CPU (live)" [value]="l.cpu" [warnAt]="cpuThresholds().warnAt" [dangerAt]="cpuThresholds().dangerAt" />
         <pg-stat-badge label="Memory (live)" [value]="l.memory" />
-        <pg-stat-badge label="Latency (live)" [value]="l.latency" unit="ms" [warnAt]="200" [dangerAt]="350" />
+        <pg-stat-badge label="Latency (live)" [value]="l.latency" unit="ms" [warnAt]="latencyThresholds.warnAt" [dangerAt]="latencyThresholds.dangerAt" />
       </div>
     }
 
@@ -49,6 +55,9 @@ import { AgoFromPipe } from '../../shared/pipes/duration-ago.pipe';
     .status-dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
     .status-dot.danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
     .ago { color: var(--text-muted); font-size: 12px; font-family: var(--font-mono); }
+    .error-banner { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: var(--radius-sm);
+      padding: 10px 14px; font-size: 12.5px; margin-bottom: var(--space-4); }
     .stats { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
     .window-tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
     .window-tabs button { background: transparent; color: var(--text-muted); border: none; border-radius: 6px;
@@ -61,9 +70,11 @@ export class DeviceDetailComponent {
 
   private readonly deviceSvc = inject(DeviceService);
   private readonly socket = inject(SocketService);
+  private readonly settingsSvc = inject(SettingsService);
 
   protected readonly history = this.deviceSvc.historyResource;
   protected readonly window = this.deviceSvc.historyMinutes;
+  protected readonly latencyThresholds = DEFAULT_THRESHOLDS.latency;
 
   protected readonly liveForThisDevice = computed<DeviceUpdate | null>(() =>
   this.socket.updatesByDevice().get(this.id()) ?? null,
@@ -71,10 +82,19 @@ export class DeviceDetailComponent {
 
   protected readonly latest = computed(() => this.liveForThisDevice());
 
+  // CPU's danger line is user-adjustable from the Settings page; keep the
+  // warn line proportional to it, same as widget-host.
+  protected readonly cpuThresholds = computed(() => {
+    const base = DEFAULT_THRESHOLDS.cpu;
+    const dangerAt = this.settingsSvc.settings().cpuAlertThreshold;
+    return { dangerAt, warnAt: Math.round((dangerAt * base.warnAt) / base.dangerAt) };
+  });
+
   protected readonly status = computed((): 'ok' | 'warn' | 'danger' => {
     const cpu = this.latest()?.cpu ?? 0;
-    if (cpu >= 90) return 'danger';
-    if (cpu >= 70) return 'warn';
+    const t = this.cpuThresholds();
+    if (cpu >= t.dangerAt) return 'danger';
+    if (cpu >= t.warnAt) return 'warn';
     return 'ok';
   });
 
